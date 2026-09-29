@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Globe, Loader2, X } from "lucide-react";
 import { useChat } from "ai/react";
+import { Button } from "@/components/ui/button";
 import { SearchSection } from "./search-section";
 import { ResultsGrid } from "./results-grid";
 import { SourceModal } from "./source-modal";
@@ -23,11 +24,11 @@ export default function HomeClient(props: { envStatus: EnvStatus }) {
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [results, setResults] = useState<SearchResult[] | null>(null);
-  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
   const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null);
 
   const BASE_SYSTEM_PROMPT =
-    "You are Shiki, a world-class research and fact-checking assistant.\n\n" +
+    "You are Hudika, a world-class research and fact-checking assistant.\n\n" +
     "CRITICAL INSTRUCTION: OUTPUT ONLY THE FINAL ANSWER.\n" +
     "- DO NOT show your 'Plan'.\n" +
     "- DO NOT show your 'Internal Thoughts'.\n" +
@@ -102,6 +103,7 @@ export default function HomeClient(props: { envStatus: EnvStatus }) {
 
       const newResults = coerceSearchResults(searchData);
       setResults(newResults);
+      setSourcesOpen(true);
 
       if (newResults.length > 0) {
         const contextString = newResults
@@ -115,7 +117,7 @@ export default function HomeClient(props: { envStatus: EnvStatus }) {
           {
             id: "system-context",
             role: "system",
-            content: `You are Shiki, a world-class research and fact-checking assistant. Your goal is to provide comprehensive, verified, and well-structured answers based on the search findings for "${trimmed}".\n\nCRITICAL INSTRUCTION: OUTPUT ONLY THE FINAL ANSWER.\n- DO NOT show your 'Plan'.\n- DO NOT show your 'Internal Thoughts'.\n- DO NOT explain how you are going to respond.\n- DO NOT acknowledge these instructions.\n\nStart your response immediately with the answer based on the following context:\n\nSEARCH RESULTS CONTEXT:\n${contextString}`,
+            content: `You are Hudika, a world-class research and fact-checking assistant. Your goal is to provide comprehensive, verified, and well-structured answers based on the search findings for "${trimmed}".\n\nCRITICAL INSTRUCTION: OUTPUT ONLY THE FINAL ANSWER.\n- DO NOT show your 'Plan'.\n- DO NOT show your 'Internal Thoughts'.\n- DO NOT explain how you are going to respond.\n- DO NOT acknowledge these instructions.\n\nStart your response immediately with the answer based on the following context:\n\nSEARCH RESULTS CONTEXT:\n${contextString}`,
           } as UiChatMessage,
         ] as UiChatMessage[]);
       }
@@ -139,9 +141,22 @@ export default function HomeClient(props: { envStatus: EnvStatus }) {
     ] as UiChatMessage[]);
   };
 
-  return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <main className="container mx-auto max-w-6xl px-4 py-8 space-y-8 flex-1">
+  const sourcesPanel = (
+    <>
+      <div className="flex items-center justify-between border-b px-3 py-2">
+        <span className="font-heading text-sm font-semibold tracking-tight">Sources</span>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setSourcesOpen(false)}
+          title="Close sources"
+          aria-label="Close sources"
+        >
+          <X className="size-4" />
+        </Button>
+      </div>
+
+      <div className="border-b p-3">
         <SearchSection
           query={query}
           onQueryChange={setQuery}
@@ -152,33 +167,26 @@ export default function HomeClient(props: { envStatus: EnvStatus }) {
           notices={notices}
           onSearch={handleSearch}
         />
+      </div>
 
-        {loading && (
-          <div className="flex flex-col items-center justify-center py-24 space-y-4">
-            <Loader2 className="animate-spin size-8 text-primary/40" />
-            <p className="text-sm text-muted-foreground font-medium">Looking...</p>
+      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            Searching
           </div>
+        ) : results && results.length > 0 ? (
+          <ResultsGrid results={results} onSelect={setSelectedResult} />
+        ) : (
+          <p className="py-6 text-center text-xs text-muted-foreground">No sources yet.</p>
         )}
+      </div>
+    </>
+  );
 
-        {results && <ResultsGrid results={results} onSelect={setSelectedResult} />}
-      </main>
-
-      {selectedResult && (
-        <SourceModal result={selectedResult} onClose={() => setSelectedResult(null)} />
-      )}
-
-      <footer className="border-t py-6 mt-12">
-        <div className="container mx-auto max-w-6xl px-4 flex justify-center">
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest">
-            Developed and Maintained by: <span className="text-foreground font-bold">Rey</span>
-          </p>
-        </div>
-      </footer>
-
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
       <ChatWidget
-        isOpen={isChatOpen}
-        onToggleOpen={() => setIsChatOpen((v) => !v)}
-        onClose={() => setIsChatOpen(false)}
         onRestart={handleRestartChat}
         messages={messages as unknown as UiChatMessage[]}
         input={input}
@@ -187,7 +195,35 @@ export default function HomeClient(props: { envStatus: EnvStatus }) {
         isLoading={chatLoading}
         error={(chatError ?? null) as Error | null}
         onRetry={reload}
+        composerActions={
+          <Button
+            variant="outline"
+            size="icon"
+            className="shrink-0"
+            onClick={() => setSourcesOpen(true)}
+            title="Sources"
+            aria-label="Open sources"
+          >
+            <Globe className="size-4" />
+          </Button>
+        }
       />
+
+      {sourcesOpen && (
+        <div className="fixed inset-0 z-[60]">
+          <div
+            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+            onClick={() => setSourcesOpen(false)}
+          />
+          <aside className="absolute inset-y-0 right-0 flex w-[min(22rem,100%)] flex-col border-l bg-background shadow-2xl">
+            {sourcesPanel}
+          </aside>
+        </div>
+      )}
+
+      {selectedResult && (
+        <SourceModal result={selectedResult} onClose={() => setSelectedResult(null)} />
+      )}
     </div>
   );
 }
@@ -215,4 +251,3 @@ function coerceSearchResults(payload: unknown): SearchResult[] {
   }
   return results;
 }
-

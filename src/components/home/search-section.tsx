@@ -31,27 +31,20 @@ export function SearchSection(props: {
   const SelectedIcon = selectedEngine?.icon ?? Search;
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight">Search</h1>
-        <p className="text-muted-foreground">Find what you need.</p>
-      </div>
-
+    <section className="space-y-3">
       <Card>
-        <CardContent className="p-3 sm:p-4 flex flex-col md:flex-row gap-3">
-          <div className="flex-1 min-w-0">
-            <Input
-              value={query}
-              onChange={(e) => onQueryChange(e.target.value)}
-              placeholder="Enter search term..."
-              onKeyDown={(e) => e.key === "Enter" && onSearch()}
-              className="bg-muted/30 h-10 sm:h-12"
-            />
-          </div>
-          <div className="flex gap-2 w-full md:w-auto">
-            <div className="flex-1 md:w-64">
+        <CardContent className="p-3 flex flex-col gap-3">
+          <Input
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
+            placeholder="Search sources"
+            onKeyDown={(e) => e.key === "Enter" && onSearch()}
+            className="bg-muted/30"
+          />
+          <div className="flex gap-2">
+            <div className="flex-1 min-w-0">
               <Select value={engine} onValueChange={(v) => onEngineChange(v as SearchEngineId)}>
-                <SelectTrigger className="bg-muted/30 h-10 sm:h-12">
+                <SelectTrigger className="bg-muted/30 w-full">
                   <SelectValue placeholder="Engine">
                     <div className="flex items-center gap-2 overflow-hidden">
                       <SelectedIcon className="size-3.5 shrink-0" />
@@ -74,10 +67,11 @@ export function SearchSection(props: {
             <Button
               onClick={onSearch}
               disabled={loading || !query.trim()}
-              size="lg"
-              className="h-10 sm:h-12 px-6"
+              size="icon"
+              title="Run search"
+              aria-label="Run search"
             >
-              {loading ? <Loader2 className="animate-spin" /> : "Go"}
+              {loading ? <Loader2 className="animate-spin" /> : <Search className="size-4" />}
             </Button>
           </div>
         </CardContent>
