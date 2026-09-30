@@ -122,7 +122,7 @@ function ReasoningBlock({ reasoning, streaming }: { reasoning: string; streaming
 
 function PendingSkeleton() {
   return (
-    <div className="w-full max-w-[42rem] rounded-2xl rounded-bl-md border border-border bg-card p-5 shadow-xs">
+    <div className="w-full">
       <div className="mb-4 flex items-center gap-2 text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">
         <span>Thinking</span>
         <span className="stream-caret" aria-hidden="true" />
@@ -130,7 +130,7 @@ function PendingSkeleton() {
       <div className="space-y-2.5" aria-hidden="true">
         <div className="h-3 w-full rounded-full bg-muted animate-pulse" />
         <div className="h-3 w-[85%] rounded-full bg-muted animate-pulse" />
-        <div className="h-3 w-[55%] rounded-full bg-muted animate-pulse" />
+        <div className="h-3 w-[45%] rounded-full bg-muted animate-pulse" />
       </div>
     </div>
   );
@@ -149,7 +149,7 @@ const AssistantMessage = memo(function AssistantMessage({
   const [inlineSource, setInlineSource] = useState<Citation | null>(null);
 
   return (
-    <div className="w-full max-w-[42rem] break-words rounded-2xl rounded-bl-md border border-border bg-card px-5 py-4 shadow-xs [overflow-wrap:anywhere]">
+    <div className="w-full min-w-0 break-words [overflow-wrap:anywhere]">
       <ReasoningBlock reasoning={msg.reasoning ?? ""} streaming={streaming} />
       <div className="reading max-w-full overflow-x-auto dark:prose-invert">
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
@@ -238,8 +238,14 @@ export function ChatWidget(props: {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const lastMessage = visibleMessages[visibleMessages.length - 1];
+  const assistantHasNoOutput =
+    (lastMessage?.role === "assistant" &&
+      lastMessage.content.length === 0 &&
+      (lastMessage.reasoning ?? "").length === 0) ??
+    false;
   const isAwaitingFirstToken =
-    isLoading && (!lastMessage || lastMessage.role !== "assistant" || lastMessage.content.length === 0);
+    isLoading &&
+    (!lastMessage || lastMessage.role !== "assistant" || assistantHasNoOutput);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -273,7 +279,15 @@ export function ChatWidget(props: {
               </p>
             </div>
           ) : (
-            visibleMessages.map((msg) => (
+            visibleMessages.map((msg) => {
+              if (
+                msg.role === "assistant" &&
+                msg.content.length === 0 &&
+                (msg.reasoning ?? "").length === 0
+              ) {
+                return null;
+              }
+              return (
               <div
                 key={msg.id}
                 className={cn(
@@ -284,7 +298,7 @@ export function ChatWidget(props: {
                 <div
                   className={cn(
                     "flex min-w-0 flex-col",
-                    msg.role === "user" ? "ml-auto items-end" : "mr-auto items-start"
+                    msg.role === "user" ? "ml-auto items-end" : "mr-auto items-start w-full"
                   )}
                 >
                   <p className="mb-2 text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">
@@ -300,7 +314,8 @@ export function ChatWidget(props: {
                   )}
                 </div>
               </div>
-            ))
+              );
+            })
           )}
 
           {isAwaitingFirstToken && <PendingSkeleton />}
