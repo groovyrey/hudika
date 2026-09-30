@@ -21,7 +21,7 @@ export function SourceModal(props: {
   const canEmbed = isSafeHttpUrl(result.url);
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-background animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-[130] flex flex-col bg-background animate-in fade-in duration-150">
       <header className="flex items-start justify-between gap-6 border-b border-border px-6 py-5 sm:px-10">
         <div className="flex min-w-0 flex-col gap-1.5">
           <h2 className="truncate font-serif text-lg leading-snug tracking-[-0.01em]">

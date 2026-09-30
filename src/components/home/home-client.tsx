@@ -5,6 +5,7 @@ import { Globe, X } from "lucide-react";
 import { useChat } from "ai/react";
 import { WorkspaceRail } from "@/components/workspace-rail";
 import { Button } from "@/components/ui/button";
+import { DisclaimerDialog } from "./disclaimer-dialog";
 import { SearchSection } from "./search-section";
 import { ResultsList } from "./results-list";
 import { SourceModal } from "./source-modal";
@@ -257,6 +258,8 @@ export default function HomeClient(props: { envStatus: EnvStatus }) {
       {selectedResult && (
         <SourceModal result={selectedResult} onClose={() => setSelectedResult(null)} />
       )}
+
+      <DisclaimerDialog />
     </div>
   );
 }

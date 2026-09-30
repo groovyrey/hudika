@@ -19,16 +19,16 @@ export function ResultsList(props: {
   const { results, onSelect } = props;
 
   return (
-    <ol className="divide-y divide-border">
+    <ol className="grid gap-2">
       {results.map((res, i) => {
         const hostname = safeHostname(res.url);
         return (
           <li key={`${res.url}-${i}`}>
-            <div className="group relative py-5">
+            <div className="group relative rounded-xl border border-border bg-card p-4 shadow-xs transition-all duration-150 hover:bg-muted/40 active:translate-y-px">
               <button
                 type="button"
                 onClick={() => onSelect(res)}
-                className="block w-full pr-8 text-left"
+                className="block w-full pr-6 text-left"
               >
                 <span className="font-serif text-[0.9375rem] leading-snug tracking-[-0.005em] decoration-1 underline-offset-4 group-hover:underline">
                   {res.name}
@@ -52,7 +52,7 @@ export function ResultsList(props: {
                   onClick={(e) => e.stopPropagation()}
                   title="Open in new tab"
                   aria-label={`Open ${res.name} in a new tab`}
-                  className="absolute right-0 top-5 p-1 text-muted-foreground transition-colors hover:text-foreground"
+                  className="absolute right-3 top-4 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:hover:bg-muted/50"
                 >
                   <ExternalLink className="size-3.5" />
                 </a>
