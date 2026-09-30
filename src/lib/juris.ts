@@ -41,7 +41,7 @@ async function sleep(ms: number): Promise<void> {
 // Cap on how much verbatim text we hand back per act/case. The Civil Code, for
 // example, is ~790KB as a single blob — that would blow the context window. We
 // truncate and always surface the LawPhil source_url so the full text stays reachable.
-const FULL_TEXT_CHAR_CAP = 24_000;
+const FULL_TEXT_CHAR_CAP = 18_000;
 const SEARCH_RESULT_CAP = 8;
 
 // When the caching proxy is not configured we call Juris directly, which means

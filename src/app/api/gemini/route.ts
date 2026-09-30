@@ -266,9 +266,10 @@ function buildSystemPrompt(messages: Array<{ role: string; content: string }>): 
   return chunks.length ? [...new Set(chunks)].join("\n\n") : "";
 }
 
-const EVIDENCE_CAP_BLOCKS = 6;
-const EVIDENCE_BLOCK_CHARS = 4_000;
-const EVIDENCE_TOTAL_CHARS = 18_000;
+const EVIDENCE_CAP_BLOCKS = 3;
+const EVIDENCE_BLOCK_CHARS = 2_500;
+const EVIDENCE_TOTAL_CHARS = 7_500;
+const EVIDENCE_LAST_MESSAGES = 4;
 
 /**
  * Re-surfaces the verified tool output from earlier turns. The client stores
@@ -283,9 +284,13 @@ function buildPriorEvidence(
   const seen = new Set<string>();
   let total = 0;
 
+  let scanned = 0;
   for (let i = messages.length - 1; i >= 0 && blocks.length < EVIDENCE_CAP_BLOCKS; i--) {
     const msg = messages[i];
-    if (!msg || msg.role !== "assistant") continue;
+    if (!msg) continue;
+    if (msg.role !== "assistant") continue;
+    scanned++;
+    if (scanned > EVIDENCE_LAST_MESSAGES) break;
     const parts = Array.isArray(msg.parts) ? msg.parts : [];
     for (let j = parts.length - 1; j >= 0; j--) {
       const part = parts[j] as { type?: string; toolInvocation?: Record<string, unknown> };

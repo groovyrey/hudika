@@ -149,14 +149,17 @@ function PendingSkeleton() {
 const AssistantMessage = memo(function AssistantMessage({
   msg,
   streaming,
+  onRetry,
 }: {
   msg: UiChatMessage;
   streaming: boolean;
+  onRetry?: () => void;
 }) {
   const components = useMemo(() => makeMarkdownComponents(streaming), [streaming]);
   const citations = useMemo(() => getCitationsFromMessage(msg), [msg]);
   const [citationsOpen, setCitationsOpen] = useState(false);
   const [inlineSource, setInlineSource] = useState<Citation | null>(null);
+  const producedOutput = !!msg.content || (msg.reasoning ?? "").length > 0;
 
   return (
     <div className="w-full min-w-0 break-words [overflow-wrap:anywhere]">
@@ -167,10 +170,29 @@ const AssistantMessage = memo(function AssistantMessage({
         </ReactMarkdown>
       </div>
 
-      {streaming && msg.content && (
+      {streaming && producedOutput && (
         <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[0.6875rem] font-medium tracking-[0.02em] text-muted-foreground">
           <span className="stream-caret" aria-hidden="true" />
           Writing response
+        </div>
+      )}
+
+      {!streaming && !msg.content && (msg.reasoning ?? "").length > 0 && (
+        <div className="mt-5 flex flex-col gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground shadow-xs">
+          <p>
+            The response ended before it produced any text. Retry the question
+            or rephrase it more narrowly.
+          </p>
+          {onRetry && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 w-max border-input px-3 text-[0.8125rem] font-normal"
+              onClick={onRetry}
+            >
+              Retry
+            </Button>
+          )}
         </div>
       )}
 
@@ -320,6 +342,7 @@ export function ChatWidget(props: {
                     <AssistantMessage
                       msg={msg}
                       streaming={isLoading && msg.id === lastMessage?.id}
+                      onRetry={onRetry}
                     />
                   )}
                 </div>
