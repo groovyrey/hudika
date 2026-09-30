@@ -84,6 +84,13 @@ function ReasoningBlock({ reasoning, streaming }: { reasoning: string; streaming
   const [override, setOverride] = useState<boolean | null>(null);
   const source = useMemo(() => sanitizeReasoning(reasoning), [reasoning]);
   const components = useMemo(() => makeMarkdownComponents(streaming), [streaming]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!streaming) return;
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [source, streaming]);
 
   if (reasoning.length === 0) return null;
 
@@ -109,7 +116,10 @@ function ReasoningBlock({ reasoning, streaming }: { reasoning: string; streaming
           {streaming && <span className="stream-caret" aria-hidden="true" />}
         </button>
         {open && (
-          <div className="reading max-h-80 overflow-y-auto border-t border-border px-3.5 py-3 text-[0.875rem] leading-relaxed text-muted-foreground">
+          <div
+            ref={scrollRef}
+            className="reading max-h-80 overflow-y-auto border-t border-border px-3.5 py-3 text-[0.875rem] leading-relaxed text-muted-foreground"
+          >
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
               {source}
             </ReactMarkdown>
