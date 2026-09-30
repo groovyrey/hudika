@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect } from "react";
 import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export function Navbar() {
+export function Topbar() {
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
     const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -28,22 +27,12 @@ export function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-50 border-b bg-background/85 backdrop-blur-md">
-      <div className="container mx-auto max-w-6xl px-4">
-        <div className="flex h-14 items-center justify-between gap-4">
-          <Link
-            href="/"
-            className="font-heading text-lg font-bold tracking-tight transition-opacity hover:opacity-70"
-          >
-            Hudika
-          </Link>
-
-          <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
-            <Moon className="size-4 dark:hidden" />
-            <Sun className="size-4 hidden dark:block" />
-          </Button>
-        </div>
-      </div>
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-border px-5 sm:px-6">
+      <p className="font-serif text-lg leading-none tracking-tight">Hudika</p>
+      <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
+        <Moon className="size-4 dark:hidden" />
+        <Sun className="size-4 hidden dark:block" />
+      </Button>
     </header>
   );
 }

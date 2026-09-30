@@ -1,8 +1,7 @@
 "use client";
 
-import { ExternalLink, Globe, X } from "lucide-react";
+import { ExternalLink, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import type { SearchResult } from "./types";
 
 function isSafeHttpUrl(rawUrl: string): boolean {
@@ -20,58 +19,60 @@ export function SourceModal(props: {
 }) {
   const { result, onClose } = props;
   const canEmbed = isSafeHttpUrl(result.url);
-  const canOpen = isSafeHttpUrl(result.url);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <Card className="w-full h-full max-w-7xl flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-        <CardHeader className="p-4 border-b flex flex-row items-center justify-between space-y-0">
-          <div className="flex flex-col gap-1 min-w-0 pr-4">
-            <CardTitle className="text-sm sm:text-base truncate">{result.name}</CardTitle>
-            <CardDescription className="text-xs truncate flex items-center gap-1.5">
-              <Globe className="size-3" />
-              {result.url}
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
+    <div className="fixed inset-0 z-[100] flex flex-col bg-background animate-in fade-in duration-150">
+      <header className="flex items-start justify-between gap-6 border-b border-border px-6 py-5 sm:px-10">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <h2 className="truncate font-serif text-lg leading-snug tracking-[-0.01em]">
+            {result.name}
+          </h2>
+          <p className="truncate font-mono text-[0.6875rem] text-muted-foreground">{result.url}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 border-input px-3 text-[0.8125rem] font-normal"
+            onClick={() => window.open(result.url, "_blank")}
+            disabled={!isSafeHttpUrl(result.url)}
+          >
+            <ExternalLink className="mr-2 size-3.5" />
+            Open
+          </Button>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close source">
+            <X className="size-4" />
+          </Button>
+        </div>
+      </header>
+
+      <div className="min-h-0 flex-1">
+        {canEmbed ? (
+          <iframe
+            src={result.url}
+            className="h-full w-full border-none"
+            title={result.name}
+            // Keep the iframe sandboxed: embed is best-effort, user can always open the source in a new tab.
+            sandbox="allow-scripts allow-forms"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-4 px-6 text-center">
+            <p className="max-w-[36ch] text-sm text-muted-foreground">
+              This page cannot be embedded. Open it in a new tab instead.
+            </p>
             <Button
               variant="outline"
               size="sm"
-              className="hidden sm:flex"
+              className="h-8 border-input px-3 text-[0.8125rem] font-normal"
               onClick={() => window.open(result.url, "_blank")}
-              disabled={!canOpen}
             >
-              <ExternalLink className="size-3 mr-2" />
-              Source
-            </Button>
-            <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full">
-              <X className="size-5" />
+              <ExternalLink className="mr-2 size-3.5" />
+              Open
             </Button>
           </div>
-        </CardHeader>
-        <CardContent className="p-0 flex-1 bg-muted/5">
-          {canEmbed ? (
-            <iframe
-              src={result.url}
-              className="w-full h-full border-none"
-              title={result.name}
-              // Keep the iframe sandboxed: embed is best-effort, user can always open the source in a new tab.
-              sandbox="allow-scripts allow-forms"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <div className="h-full w-full flex flex-col items-center justify-center gap-3 p-6 text-center">
-              <p className="text-sm text-muted-foreground">
-                This URL can’t be embedded. Open it in a new tab instead.
-              </p>
-              <Button onClick={() => window.open(result.url, "_blank")} disabled={!canOpen}>
-                <ExternalLink className="size-4 mr-2" />
-                Open Source
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        )}
+      </div>
     </div>
   );
 }

@@ -3,12 +3,20 @@ import { streamText, tool } from "ai";
 import { z } from "zod";
 import { logger } from "@/lib/logger";
 
+import {
+  getCase,
+  getRepublicAct,
+  searchConstitution,
+  searchJurisprudence,
+  searchRepublicActs,
+} from "@/lib/juris";
+import { getCode, searchCodeCorpus } from "@/lib/codes";
 import { rateLimit } from "@/lib/rate-limit";
 import { fetchUrlTextBestEffort } from "@/lib/url-fetch";
 
 export const runtime = "nodejs";
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemma-4-26b-a4b-it";
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemma-4-31b-it";
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GEMINI_API_KEY,
   baseURL: "https://generativelanguage.googleapis.com/v1beta",
@@ -69,7 +77,9 @@ export async function POST(req: Request) {
       experimental_continueSteps: true,
       providerOptions: {
         google: {
-          thought: false,
+          thinkingConfig: {
+            includeThoughts: true,
+          },
         },
       },
       tools: {
@@ -87,8 +97,105 @@ export async function POST(req: Request) {
           }),
           execute: async ({ url }) => ({ content: await fetchUrlTextBestEffort(url) }),
         }),
+        // --- Philippine legal research (Juris / LawPhil / SC, public domain) ---
+        search_ph_laws: tool({
+          description:
+            "Semantic search over Philippine Republic Acts. Returns candidate acts (RA number + title). " +
+            "Then call get_ph_law for the promising ones to read their verbatim text. Prefer a plain-language " +
+            "legal question over keywords. Use this to find which statutes could apply.",
+          parameters: z.object({
+            query: z.string().describe("The legal question or subject matter, in plain language."),
+            limit: z.number().int().min(1).max(8).optional().describe("Max results (default 5)."),
+            year: z.number().int().optional().describe("Only acts enacted this year."),
+          }),
+          execute: async ({ query, limit, year }) => ({
+            content: await searchRepublicActs({ query, limit, year }),
+          }),
+        }),
+        get_ph_law: tool({
+          description:
+            "Fetch the verbatim text of one Philippine Republic Act by RA number or by id from search_ph_laws. " +
+            "Cite statutes only from text returned by this tool, and quote or reference the exact section.",
+          parameters: z.object({
+            ra_number: z
+              .string()
+              .optional()
+              .describe("The RA number, e.g. '9502'. Use this for a known act."),
+            id: z.string().optional().describe("The id from search_ph_laws results."),
+          }),
+          execute: async ({ ra_number, id }) => ({
+            content: await getRepublicAct({ ra_number, id }),
+          }),
+        }),
+        // --- Curated Philippine Codes (PD/EO/BP/CA/Act + 1987 Const, D1 + AI Search) ---
+        search_ph_corpus: tool({
+          description:
+            "Semantic search over the curated Philippine statute corpus. Covers Presidential Decrees, " +
+            "Executive Orders, Batas Pambansa, Commonwealth/Commission/Assembly Acts, the 1987 Constitution, " +
+            "and the major Republic Acts. Returns the matching instrument and verbatim chunks with source. " +
+            "Use this when the law subject is a PD, EO, BP, CA, Act, or constitutional provision, or when " +
+            "search_ph_laws returns nothing useful. Then call get_ph_code to read the full verbatim text.",
+          parameters: z.object({
+            query: z.string().describe("The legal question or subject matter, in plain language."),
+            limit: z.number().int().min(1).max(10).optional().describe("Max results (default 6)."),
+          }),
+          execute: async ({ query, limit }) => ({
+            content: await searchCodeCorpus({ query, limit }),
+          }),
+        }),
+        get_ph_code: tool({
+          description:
+            "Fetch the verbatim text of one curated Philippine Code by type + number, or search the corpus " +
+            "by title keyword. Types: RA, PD, EO, BP, CA, ACT, CONST. Examples: { type: 'PD', number: 442 } " +
+            "(Labor Code), { type: 'EO', number: 209 } (Family Code), { type: 'ACT', number: 3815 } (Revised " +
+            "Penal Code), { type: 'BP', number: 881 } (Omnibus Election Code), { type: 'CONST', number: 1987 } " +
+            "(1987 Constitution), { type: 'RA', number: 386 } (Civil Code). Cite only text returned here.",
+          parameters: z.object({
+            type: z.string().optional().describe("Instrument type: RA, PD, EO, BP, CA, ACT, or CONST."),
+            number: z.number().int().min(1).optional().describe("Instrument number, e.g. 442."),
+            title: z.string().optional().describe("Title keyword search when type/number are unknown."),
+          }),
+          execute: async ({ type, number, title }) => ({
+            content: await getCode({ type, number, title }),
+          }),
+        }),
+        search_ph_cases: tool({
+          description:
+            "Semantic search over Philippine Supreme Court decisions. Returns case numbers and titles. " +
+            "Then call get_ph_case to read the decision. Use for doctrine, holdings, and precedents.",
+          parameters: z.object({
+            query: z.string().describe("The legal issue or fact pattern, in plain language."),
+            limit: z.number().int().min(1).max(8).optional().describe("Max results (default 5)."),
+            year: z.number().int().optional().describe("Only decisions promulgated this year."),
+            case_type: z
+              .string()
+              .optional()
+              .describe('Filter by case type, e.g. "Labor", "Civil", "Criminal", "Administrative".'),
+          }),
+          execute: async ({ query, limit, year, case_type }) => ({
+            content: await searchJurisprudence({ query, limit, year, case_type }),
+          }),
+        }),
+        get_ph_case: tool({
+          description:
+            "Fetch the verbatim text of one Philippine Supreme Court decision by id (from search_ph_cases) " +
+            "or by case number (e.g. 'G.R. No. 232870'). Use it to confirm a holding before citing it.",
+          parameters: z.object({
+            id: z.string().optional().describe("The id from search_ph_cases results."),
+            case_number: z.string().optional().describe("The case number, e.g. 'G.R. No. 232870'."),
+          }),
+          execute: async ({ id, case_number }) => ({ content: await getCase({ id, case_number }) }),
+        }),
+        search_ph_constitution: tool({
+          description: "Search the 1987 Philippine Constitution for a relevant provision or right.",
+          parameters: z.object({
+            query: z.string().describe("The constitutional right or provision, in plain language."),
+            article: z.string().optional().describe("Article filter, e.g. 'III' or 'IX-A'."),
+          }),
+          execute: async ({ query, article }) => ({ content: await searchConstitution({ query, article }) }),
+        }),
       },
-      maxSteps: 5,
+      maxSteps: 6,
       onFinish: ({ text }) => {
         logger.info("Assistant response completed", {
           textLength: text.length,
@@ -98,6 +205,7 @@ export async function POST(req: Request) {
     });
 
     return result.toDataStreamResponse({
+      sendReasoning: true,
       getErrorMessage: (error) => {
         logger.error("Stream Error", error);
         return error instanceof Error ? error.message : String(error);

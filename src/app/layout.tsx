@@ -1,20 +1,20 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
-import { Navbar } from "@/components/navbar";
+import { Geist, Geist_Mono, Newsreader } from "next/font/google";
+import { Topbar } from "@/components/topbar";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const geist = Geist({
+  variable: "--font-geist",
   subsets: ["latin"],
 });
 
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
   subsets: ["latin"],
 });
 
-const jetBrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
+const newsreader = Newsreader({
+  variable: "--font-newsreader",
   subsets: ["latin"],
 });
 
@@ -31,11 +31,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${spaceGrotesk.variable} ${jetBrainsMono.variable} h-full antialiased`}
+      className={`${geist.variable} ${geistMono.variable} ${newsreader.variable} h-full antialiased`}
     >
-      <body className="h-full flex flex-col bg-background text-foreground">
-        <Navbar />
-        {children}
+      <body className="h-full bg-background font-sans text-foreground">
+        <div className="flex h-full flex-col">
+          <Topbar />
+          {children}
+        </div>
       </body>
     </html>
   );

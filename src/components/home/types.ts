@@ -15,4 +15,5 @@ export type UiChatMessage = {
   id: string;
   role: "system" | "user" | "assistant" | "data";
   content: string;
+  reasoning?: string;
 };

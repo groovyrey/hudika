@@ -1,9 +1,8 @@
 "use client";
 
-import { Loader2, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -31,67 +30,60 @@ export function SearchSection(props: {
   const SelectedIcon = selectedEngine?.icon ?? Search;
 
   return (
-    <section className="space-y-3">
-      <Card>
-        <CardContent className="p-3 flex flex-col gap-3">
-          <Input
-            value={query}
-            onChange={(e) => onQueryChange(e.target.value)}
-            placeholder="Search sources"
-            onKeyDown={(e) => e.key === "Enter" && onSearch()}
-            className="bg-muted/30"
-          />
-          <div className="flex gap-2">
-            <div className="flex-1 min-w-0">
-              <Select value={engine} onValueChange={(v) => onEngineChange(v as SearchEngineId)}>
-                <SelectTrigger className="bg-muted/30 w-full">
-                  <SelectValue placeholder="Engine">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <SelectedIcon className="size-3.5 shrink-0" />
-                      <span className="truncate">{selectedEngine?.name ?? "Engine"}</span>
-                    </div>
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {SEARCH_ENGINES.map((eng) => (
-                    <SelectItem key={eng.id} value={eng.id}>
-                      <div className="flex items-center gap-2">
-                        <eng.icon className="size-3.5" />
-                        <span>{eng.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button
-              onClick={onSearch}
-              disabled={loading || !query.trim()}
-              size="icon"
-              title="Run search"
-              aria-label="Run search"
-            >
-              {loading ? <Loader2 className="animate-spin" /> : <Search className="size-4" />}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+    <section className="space-y-4">
+      <div className="space-y-3">
+        <Input
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          placeholder="Search sources"
+          onKeyDown={(e) => e.key === "Enter" && onSearch()}
+          className="h-9 border-input bg-transparent text-[0.8125rem] shadow-none"
+        />
+        <div className="flex items-center gap-3">
+          <Select value={engine} onValueChange={(v) => onEngineChange(v as SearchEngineId)}>
+            <SelectTrigger className="h-8 w-full border-input bg-transparent text-[0.8125rem] shadow-none">
+              <SelectValue placeholder="Engine">
+                <span className="flex items-center gap-2 overflow-hidden">
+                  <SelectedIcon className="size-3.5 shrink-0" />
+                  <span className="truncate">{selectedEngine?.name ?? "Engine"}</span>
+                </span>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {SEARCH_ENGINES.map((eng) => (
+                <SelectItem key={eng.id} value={eng.id}>
+                  <span className="flex items-center gap-2">
+                    <eng.icon className="size-3.5" />
+                    <span>{eng.name}</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            onClick={onSearch}
+            disabled={loading || !query.trim()}
+            size="sm"
+            className="h-8 shrink-0 border-input px-3 text-[0.8125rem] font-normal"
+          >
+            {loading ? "Searching" : "Search"}
+          </Button>
+        </div>
+      </div>
 
       {error && (
-        <div className="bg-destructive/10 text-destructive border border-destructive/20 rounded-md p-3 text-sm">
+        <p className="border-l-2 border-destructive pl-3 text-[0.8125rem] text-destructive">
           {error}
-        </div>
+        </p>
       )}
 
       {notices && notices.length > 0 && (
         <div className="space-y-2">
           {notices.map((n, i) => (
-            <div
-              key={i}
-              className="bg-muted/40 border rounded-md p-3 text-sm text-muted-foreground"
-            >
+            <p key={i} className="text-[0.75rem] leading-relaxed text-muted-foreground">
               {n}
-            </div>
+            </p>
           ))}
         </div>
       )}
