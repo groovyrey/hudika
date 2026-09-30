@@ -1,12 +1,5 @@
 import type { Message } from "ai";
 
-export type SearchEngineId =
-  | "langsearch"
-  | "google"
-  | "google_scholar"
-  | "bing"
-  | "baidu";
-
 export type SearchResult = {
   name: string;
   url: string;

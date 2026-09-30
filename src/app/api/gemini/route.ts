@@ -24,20 +24,22 @@ const google = createGoogleGenerativeAI({
 
 const SERP_ENDPOINT = "https://serpapi.com/search";
 
-async function googleSearch(query: string) {
+type SerpEngine = "google" | "google_scholar";
+
+async function serpSearch(query: string, engine: SerpEngine) {
   const apiKey = process.env.SERP_API_KEY;
   if (!apiKey) return "Error: SERP_API_KEY is not set";
 
-  const limiter = await rateLimit("google_search", 5, 10 * 60 * 1000);
+  const limiter = await rateLimit(`serp:${engine}`, 5, 10 * 60 * 1000);
   if (!limiter.success) {
     const minutes = Math.ceil((limiter.resetIn || 0) / 60000);
-    return `Error: Google Search rate limit exceeded. Please wait ${minutes} minutes.`;
+    return `Error: ${engine} search rate limit exceeded. Please wait ${minutes} minutes.`;
   }
 
   try {
     const url = new URL(SERP_ENDPOINT);
     url.searchParams.set("q", query);
-    url.searchParams.set("engine", "google");
+    url.searchParams.set("engine", engine);
     url.searchParams.set("api_key", apiKey);
     const response = await fetch(url.toString());
     const data = (await response.json().catch(() => ({}))) as unknown;
@@ -96,11 +98,26 @@ export async function POST(req: Request) {
       },
       tools: {
         google_search: tool({
-          description: "Performs a Google search to find new information.",
+          description:
+            "Performs a general web search via Google. Use for context, current events, and " +
+            "whether a statute has been amended, repealed, or struck down since you last had it verified. " +
+            "For Philippine statutes, cases, and constitutional provisions, prefer the legal tools " +
+            "(search_ph_laws, get_ph_law, search_ph_corpus, get_ph_code, search_ph_cases, get_ph_case, " +
+            "search_ph_constitution), which return authoritative verbatim text.",
           parameters: z.object({
             query: z.string().describe("The search query to look up on Google."),
           }),
-          execute: async ({ query }) => ({ content: await googleSearch(query) }),
+          execute: async ({ query }) => ({ content: await serpSearch(query, "google") }),
+        }),
+        google_scholar: tool({
+          description:
+            "Searches Google Scholar for legal scholarship, law review articles, and commentary. " +
+            "Use to find academic discussion of a legal issue when the primary statutes and cases have " +
+            "already been retrieved with the legal tools.",
+          parameters: z.object({
+            query: z.string().describe("The search query to look up on Google Scholar."),
+          }),
+          execute: async ({ query }) => ({ content: await serpSearch(query, "google_scholar") }),
         }),
         fetch_url: tool({
           description: "Fetches the content of a specific URL and returns the text content.",
