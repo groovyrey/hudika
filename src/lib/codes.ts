@@ -33,24 +33,41 @@ function jurisProxyOrigin(): string {
 const WORKER_URL = (process.env.HUDIKA_WORKER_URL ?? jurisProxyOrigin()).replace(/\/+$/, "");
 const GATE_KEY = process.env.JURIS_PROXY_KEY ?? "";
 const TIMEOUT_MS = 20_000;
+const RETRY_DELAY_MS = 400;
+
+function retryable(status?: number): boolean {
+  return status === undefined || status >= 500 || status === 429;
+}
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 async function postLegal(path: string, body: Record<string, unknown>, method: "POST" = "POST"): Promise<Record<string, unknown>> {
   if (!WORKER_URL) {
     throw new Error("HUDIKA_WORKER_URL is not set; the curated statute tools are unavailable.");
   }
-  const res = await fetch(`${WORKER_URL}${path}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      ...(GATE_KEY ? { "x-juris-key": GATE_KEY } : {}),
-    },
-    body: method === "POST" ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
-  if (!res.ok) {
-    throw new Error(`legal corpus upstream error: ${res.status} ${res.statusText}`);
+  let lastStatus: number | undefined;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const res = await fetch(`${WORKER_URL}${path}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        ...(GATE_KEY ? { "x-juris-key": GATE_KEY } : {}),
+      },
+      body: method === "POST" ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (res.ok) {
+      return (await res.json()) as Record<string, unknown>;
+    }
+    lastStatus = res.status;
+    if (!retryable(res.status)) {
+      throw new Error(`legal corpus upstream error: ${res.status} ${res.statusText}`);
+    }
+    if (attempt === 0) await sleep(RETRY_DELAY_MS);
   }
-  return (await res.json()) as Record<string, unknown>;
+  throw new Error(`legal corpus upstream error: ${lastStatus ?? "network"}`);
 }
 
 function formatError(message: string, kind: string): string {

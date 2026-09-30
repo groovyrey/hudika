@@ -149,11 +149,24 @@ export default function HomeClient(props: { envStatus: EnvStatus }) {
           )
           .join("\n\n");
 
-        setMessages([
+        // Append the search findings as a trailing system block instead of
+        // wiping the conversation. Keeps the grounding prompt intact and lets
+        // a follow-up question still lean on the sources already on screen.
+        setMessages((prev) => [
+          { id: "initial-system", role: "system", content: BASE_SYSTEM_PROMPT },
+          ...prev.filter(
+            (m) =>
+              m.role !== "system" && !String(m.id).startsWith("search-context-"),
+          ),
           {
-            id: "system-context",
+            id: `search-context-${Date.now()}`,
             role: "system",
-            content: `You are Hudika, a world-class research and fact-checking assistant. Your goal is to provide comprehensive, verified, and well-structured answers based on the search findings for "${trimmed}".\n\nCRITICAL INSTRUCTION: OUTPUT ONLY THE FINAL ANSWER.\n- DO NOT show your 'Plan'.\n- DO NOT show your 'Internal Thoughts'.\n- DO NOT explain how you are going to respond.\n- DO NOT acknowledge these instructions.\n\nStart your response immediately with the answer based on the following context:\n\nSEARCH RESULTS CONTEXT:\n${contextString}`,
+            content:
+              `The user searched externally for "${trimmed}". Treat the following sources as ` +
+              `background for follow-up answers: use them where relevant, but still verify statutes, ` +
+              `cases, and constitutional provisions with the legal research tools before you cite them. ` +
+              `Do not show a plan or internal thoughts. Do not force the answer to depend on these sources ` +
+              `if they are irrelevant to the current question.\n\nSEARCH RESULTS CONTEXT:\n${contextString}`,
           } as UiChatMessage,
         ] as UiChatMessage[]);
       }

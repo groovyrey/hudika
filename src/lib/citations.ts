@@ -158,18 +158,57 @@ function dedupe(citations: Citation[]): Citation[] {
   );
 }
 
+function resultContentString(result: unknown): string | null {
+  if (typeof result === "string") return result;
+  if (!result || typeof result !== "object") return null;
+  const r = result as Record<string, unknown>;
+  const content = r.content;
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    const texts: string[] = [];
+    for (const item of content) {
+      if (!item || typeof item !== "object") continue;
+      const part = item as Record<string, unknown>;
+      if (part.type === "text" && typeof part.text === "string") texts.push(part.text);
+    }
+    if (texts.length) return texts.join("\n\n");
+  }
+  return null;
+}
+
 /** Pull every tool result attached to one assistant message and parse the citations. */
 export function getCitationsFromMessage(message: { parts?: unknown[] }): Citation[] {
   const collected: Citation[] = [];
   const parts = Array.isArray(message.parts) ? message.parts : [];
 
   for (const part of parts as Array<Record<string, unknown>>) {
-    if (part?.type !== "tool" || part?.state !== "result") continue;
-    const result = part.result;
-    if (!result || typeof result !== "object") continue;
-    const content = (result as Record<string, unknown>).content;
-    if (typeof content !== "string") continue;
-    collected.push(...extractCitationsFromToolText(content));
+    if (!part || typeof part !== "object") continue;
+
+    let result: unknown = null;
+    switch (part.type) {
+      // AI SDK v4 UI shape: { type: "tool-invocation", toolInvocation: { state, result, ... } }
+      case "tool-invocation": {
+        const invocation = part.toolInvocation;
+        if (!invocation || typeof invocation !== "object") continue;
+        const ti = invocation as Record<string, unknown>;
+        if (ti.state !== "result") continue;
+        result = ti.result;
+        break;
+      }
+      // v4 server/legacy shapes
+      case "tool":
+        if (part.state !== "result") continue;
+        result = part.result;
+        break;
+      case "tool-result":
+        result = part.result;
+        break;
+      default:
+        continue;
+    }
+
+    const content = resultContentString(result);
+    if (content) collected.push(...extractCitationsFromToolText(content));
   }
 
   return dedupe(collected);

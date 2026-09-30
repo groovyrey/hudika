@@ -25,6 +25,18 @@ const JURIS_MCP = process.env.JURIS_MCP_URL ?? "https://juris.ph/mcp";
 const JURIS_PROXY = process.env.JURIS_PROXY_URL;
 const JURIS_PROXY_KEY = process.env.JURIS_PROXY_KEY ?? "";
 const JURIS_TIMEOUT_MS = 20_000;
+const RETRY_DELAY_MS = 400;
+
+// One retry for transient upstream failures (network blips, 5xx, 429). A
+// cached record behind the worker proxy makes this nearly free on repeats.
+function retryable(failure: unknown, status?: number): boolean {
+  if (status !== undefined && status < 500 && status !== 429) return false;
+  return true;
+}
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // Cap on how much verbatim text we hand back per act/case. The Civil Code, for
 // example, is ~790KB as a single blob — that would blow the context window. We
@@ -79,36 +91,44 @@ async function mcpCall(tool: McpToolName, args: Record<string, unknown>): Promis
   const useProxy = Boolean(JURIS_PROXY);
   const url = useProxy ? (JURIS_PROXY as string) : JURIS_MCP;
 
-  const init: RequestInit = {
-    method: "POST",
-    headers: {
+  let lastErr: unknown = null;
+  let lastStatus: number | undefined;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const headers: Record<string, string> = {
       "Content-Type": "application/json",
       Accept: "application/json, text/event-stream",
       // The proxy is gated on a shared secret and fails closed without it.
       ...(useProxy ? { "x-juris-key": JURIS_PROXY_KEY } : {}),
-    },
-    body,
-    signal: AbortSignal.timeout(JURIS_TIMEOUT_MS),
-  };
-
-  const res = await fetch(url, init);
-  if (!res.ok) {
-    throw new Error(`Juris upstream error: ${res.status} ${res.statusText}`);
+    };
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers,
+        body,
+        signal: AbortSignal.timeout(JURIS_TIMEOUT_MS),
+      });
+      if (res.ok) {
+        const rpc = (await res.json()) as JsonRpcResponse;
+        if (rpc.error) {
+          throw new Error(`Juris tool error: ${rpc.error.message ?? "unknown"}`);
+        }
+        const text = rpc.result?.content?.find((c) => c.type === "text")?.text;
+        if (typeof text !== "string") return null;
+        try {
+          return JSON.parse(text);
+        } catch {
+          return text;
+        }
+      }
+      lastStatus = res.status;
+      lastErr = new Error(`Juris upstream error: ${res.status} ${res.statusText}`);
+      if (!retryable(lastErr, res.status)) break;
+    } catch (e) {
+      lastErr = e;
+    }
+    if (attempt === 0 && retryable(lastErr, lastStatus)) await sleep(RETRY_DELAY_MS);
   }
-
-  const rpc = (await res.json()) as JsonRpcResponse;
-  if (rpc.error) {
-    throw new Error(`Juris tool error: ${rpc.error.message ?? "unknown"}`);
-  }
-
-  const text = rpc.result?.content?.find((c) => c.type === "text")?.text;
-  if (typeof text !== "string") return null;
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
 type Rec = Record<string, unknown>;

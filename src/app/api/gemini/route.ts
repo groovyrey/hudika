@@ -66,14 +66,26 @@ async function googleSearch(query: string) {
 
 export async function POST(req: Request) {
   try {
-    const body = GeminiBodySchema.parse(await req.json());
+    const raw = await req.text();
+    if (raw.length > 1_500_000) {
+      return new Response(JSON.stringify({ error: "Request body too large." }), {
+        status: 413,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    const body = GeminiBodySchema.parse(JSON.parse(raw));
     const messages = body.messages;
     logger.info("POST /api/gemini: Request received", { model: GEMINI_MODEL });
 
+    const system = buildSystemPrompt(messages);
+    const priorEvidence = buildPriorEvidence(messages);
+
     const result = await streamText({
       model: google(GEMINI_MODEL),
-      system: messages.find((m) => m.role === "system")?.content,
-      messages: messages.filter((m) => m.role !== "system"),
+      system: priorEvidence ? `${system}\n\n${priorEvidence}` : system,
+      messages: messages
+        .filter((m) => m.role !== "system")
+        .map((m) => ({ role: m.role, content: m.content })),
       experimental_continueSteps: true,
       providerOptions: {
         google: {
@@ -195,7 +207,7 @@ export async function POST(req: Request) {
           execute: async ({ query, article }) => ({ content: await searchConstitution({ query, article }) }),
         }),
       },
-      maxSteps: 6,
+      maxSteps: 8,
       onFinish: ({ text }) => {
         logger.info("Assistant response completed", {
           textLength: text.length,
@@ -207,8 +219,13 @@ export async function POST(req: Request) {
     return result.toDataStreamResponse({
       sendReasoning: true,
       getErrorMessage: (error) => {
+        const message =
+          error instanceof Error ? error.message : String(error);
+        if (/too many tool call iterations|exceeded.*maxSteps|no more steps/i.test(message)) {
+          return "The research hit its step limit before turning in a finished answer. Try a more focused follow-up, or retry.";
+        }
         logger.error("Stream Error", error);
-        return error instanceof Error ? error.message : String(error);
+        return message;
       },
     });
   } catch (error: unknown) {
@@ -222,14 +239,99 @@ export async function POST(req: Request) {
 }
 
 const GeminiBodySchema = z.object({
+  // `.passthrough()` keeps the client's `parts` (tool results) so we can reuse
+  // prior grounded text across turns without spraying the raw body everywhere.
   messages: z.array(
-    z.object({
-      id: z.string().optional(),
-      role: z.enum(["system", "user", "assistant"]),
-      content: z.string(),
-    }),
+    z
+      .object({
+        id: z.string().optional(),
+        role: z.enum(["system", "user", "assistant"]),
+        content: z.string(),
+      })
+      .passthrough(),
   ),
 });
+
+/**
+ * Merge every system message in the payload. The client may attach several
+ * (grounding prompt, followed by a search-context block); the SDK accepts a
+ * single system string, and extra system bodies above the first would be
+ * silently dropped. Join them so nothing is lost.
+ */
+function buildSystemPrompt(messages: Array<{ role: string; content: string }>): string {
+  const chunks = messages
+    .filter((m) => m.role === "system")
+    .map((m) => (typeof m.content === "string" ? m.content : "").trim())
+    .filter(Boolean);
+  return chunks.length ? [...new Set(chunks)].join("\n\n") : "";
+}
+
+const EVIDENCE_CAP_BLOCKS = 6;
+const EVIDENCE_BLOCK_CHARS = 4_000;
+const EVIDENCE_TOTAL_CHARS = 18_000;
+
+/**
+ * Re-surfaces the verified tool output from earlier turns. The client stores
+ * full tool parts locally (for the Cited-sources modal); we forward a bounded,
+ * deduplicated digest so a follow-up question can still lean on the verbatim
+ * text and LawPhil links an earlier answer cited without re-running the tools.
+ */
+function buildPriorEvidence(
+  messages: Array<{ role: string; parts?: unknown }>,
+): string {
+  const blocks: string[] = [];
+  const seen = new Set<string>();
+  let total = 0;
+
+  for (let i = messages.length - 1; i >= 0 && blocks.length < EVIDENCE_CAP_BLOCKS; i--) {
+    const msg = messages[i];
+    if (!msg || msg.role !== "assistant") continue;
+    const parts = Array.isArray(msg.parts) ? msg.parts : [];
+    for (let j = parts.length - 1; j >= 0; j--) {
+      const part = parts[j] as { type?: string; toolInvocation?: Record<string, unknown> };
+      if (!part || typeof part !== "object") continue;
+      if (part.type !== "tool-invocation") continue;
+      const invocation = part.toolInvocation;
+      if (!invocation || typeof invocation !== "object") continue;
+      if (invocation.state !== "result") continue;
+      const result = invocation.result;
+      const content = resultContentString(result);
+      if (!content || seen.has(content)) continue;
+      seen.add(content);
+      const trimmed = content.length > EVIDENCE_BLOCK_CHARS
+        ? `${content.slice(0, EVIDENCE_BLOCK_CHARS)}\n[...truncated]`
+        : content;
+      blocks.push(trimmed);
+      total += trimmed.length;
+      if (total >= EVIDENCE_TOTAL_CHARS) break;
+    }
+  }
+
+  if (!blocks.length) return "";
+  return (
+    "EARLIER VERIFIED SOURCES FROM THIS CONVERSATION (use these again when your answer touches them; " +
+    "do not restate legal text from memory, keep citing what is written here):\n\n" +
+    blocks.join("\n\n---\n\n")
+  );
+}
+
+function resultContentString(result: unknown): string | null {
+  if (typeof result === "string") return result;
+  if (!result || typeof result !== "object") return null;
+  const r = result as Record<string, unknown>;
+  const content = r.content;
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    const texts: string[] = [];
+    for (const item of content) {
+      if (!item || typeof item !== "object") continue;
+      const part = item as Record<string, unknown>;
+      if (part.type === "text" && typeof part.text === "string") texts.push(part.text);
+    }
+    if (texts.length) return texts.join("\n\n");
+  }
+  return null;
+}
 
 function extractArrayField(payload: unknown, key: string): unknown[] | null {
   if (!payload || typeof payload !== "object") return null;
